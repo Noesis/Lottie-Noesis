@@ -2,8 +2,10 @@
 
 Lottie-Noesis renders [Adobe AfterEffects](https://www.adobe.com/products/aftereffects.html) animations using [NoesisGUI](https://www.noesisengine.com/). Noesis now offers a **Python** script to import JSON animations derived from [Bodymovin](https://github.com/airbnb/lottie-web) plugin for After Effects. It can be used on any platform compatible with NoesisGUI like desktop, mobile, consoles and web.
 
-![GIF](https://github.com/Noesis/Noesis.github.io/blob/master/NoesisGUI/Lottie/GIF.gif)
-![GIF](https://github.com/Noesis/Noesis.github.io/blob/master/NoesisGUI/Lottie/GIF3.gif)
+Click on [Sample0](https://www.noesisengine.com/xamltoy/e4c6986363164dabcb6e0ea8d8d96265) or [Sample1](https://www.noesisengine.com/xamltoy/637ecb0c5f601da643bdaf9e855b46f8) for realtime preview in [XamlToy](https://xamltoy.noesisengine.com) (Sample animations courtesy of [lottiefiles.com](https://lottiefiles.com/))
+
+[![GIF](https://github.com/Noesis/Noesis.github.io/blob/master/NoesisGUI/Lottie/GIF.gif)](https://www.noesisengine.com/xamltoy/e4c6986363164dabcb6e0ea8d8d96265)
+[![GIF](https://github.com/Noesis/Noesis.github.io/blob/master/NoesisGUI/Lottie/GIF3.gif)](https://www.noesisengine.com/xamltoy/637ecb0c5f601da643bdaf9e855b46f8)
 
 ## Requirements
 * NoesisGUI 3.0+ is needed
