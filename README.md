@@ -10,7 +10,7 @@ Click on [Sample0](https://www.noesisengine.com/xamltoy/e4c6986363164dabcb6e0ea8
 ## Requirements
 * NoesisGUI 3.0+ is needed
 * Compatible with C++ SDK, C# SDK, Unity and Unreal Engine
-* Python 2.7
+* Python 3
 * JSON files exported with Bodymovin 5.6.1+
 
 ## Getting Started

@@ -7,7 +7,7 @@ import math
 from collections import namedtuple
 from argparse import ArgumentParser
 
-__version__ = "0.4"
+__version__ = "0.41"
 
 # Bodymovin JSON to XAML converter
 # See: https://github.com/airbnb/lottie-web/tree/master/docs/json for the (usually out-of-date) schema
@@ -187,7 +187,7 @@ class JsonParser:
         name = self.context[-1][0]
         obj = self.context[-1][1]
 
-        if default is not 'default':
+        if default != 'default':
             return obj.pop(field, default)
         else:
             value = obj.pop(field, None)
@@ -1119,7 +1119,7 @@ class JsonParser:
 
     def dump_shapes(self, obj, level = 0):
         for shape in obj:
-            print '  %s- %s - %s' % (' ' * level, shape['ty'].upper(), shape['nm'])
+            print('  %s- %s - %s' % (' ' * level, shape['ty'].upper(), shape['nm']))
             if shape['ty'] == 'gr':
                 self.dump_shapes(shape['it'], level + 1)
 
@@ -1167,9 +1167,9 @@ class JsonParser:
             warning("Unsupported layer type '%d'" % ty)
 
         if self.debug:
-            print ' = #%d - %s - (%s - %s)' % \
+            print(' = #%d - %s - (%s - %s)' % \
                 (index, ['Precomp', 'Solid', 'Image', 'Null', 'Shape', 'Text'][ty], \
-                self.as_time(start), self.as_time(end))
+                self.as_time(start), self.as_time(end)))
 
         start_tab = self.tab
         name = 'Layer%s%d' % (prefix, index)
@@ -1257,7 +1257,7 @@ class JsonParser:
             warning('Composition start is not at zero')
 
         secs = format_float((self.end - self.start) / float(self.fps))
-        print '= %s - %d x %d @%d - %s secs - BodyMovin v%s' % (name, self.width, self.height, self.fps, secs, version)
+        print('= %s - %d x %d @%d - %s secs - BodyMovin v%s' % (name, self.width, self.height, self.fps, secs, version))
 
         # Sort layers by rendering order
         layers.sort(key = lambda layer: layer['ind'], reverse = True)
