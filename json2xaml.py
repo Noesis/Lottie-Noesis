@@ -973,19 +973,19 @@ class JsonParser:
             if trim_start[0].first != 0:
                 self.noesis_namespace = True
                 self.body += ' noesis:Path.TrimStart="%s"' % format_float(trim_start[0].first / 100.0)
-            self.write_float_animation(trim_start[0], "TrimStart", path_name, 1.0 / 100.0)
+            self.write_float_animation(trim_start[0], "(noesis:Path.TrimStart)", path_name, 1.0 / 100.0)
 
         if trim_end:
             if trim_end[0].first != 100:
                 self.noesis_namespace = True
                 self.body += ' noesis:Path.TrimEnd="%s"' % format_float(trim_end[0].first / 100.0)
-            self.write_float_animation(trim_end[0], "TrimEnd", path_name, 1.0 / 100.0)
+            self.write_float_animation(trim_end[0], "(noesis:Path.TrimEnd)", path_name, 1.0 / 100.0)
 
         if trim_offset:
             if trim_offset[0].first != 0:
                 self.noesis_namespace = True
                 self.body += ' noesis:Path.TrimOffset="%s"' % format_float(trim_offset[0].first / 360.0)
-            self.write_float_animation(trim_offset[0], "TrimOffset", path_name, 1.0 / 360.0)
+            self.write_float_animation(trim_offset[0], "(noesis:Path.TrimOffset)", path_name, 1.0 / 360.0)
 
         if path_animated:
             self.body += '>\n'
