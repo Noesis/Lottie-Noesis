@@ -18,7 +18,41 @@ Click on [Sample0](https://www.noesisengine.com/xamltoy/e4c6986363164dabcb6e0ea8
 Use the Python script to convert from .json to .xaml:
 
 ```
-usage: json2xaml.py [-h] [--version] [--debug] json_file xaml_file
+usage: json2xaml.py [-h] [--version] [--debug] [--template <key>]
+                    [--repeat <behavior>]
+                    json_file xaml_file
+
+Converts from After Effects Bodymovin format to Noesis XAML
+
+positional arguments:
+  json_file            the JSON file to be converted from
+  xaml_file            the XAML file to created
+
+optional arguments:
+  -h, --help           show this help message and exit
+  --version            show program's version number and exit
+  --debug              Dump layers information
+  --template <key>     Imports lottie as a control template resource
+  --repeat <behavior>  Describes how the animation repeats
+```
+
+## Usage
+
+By default the script generates a XAML with a root *Canvas*. This is not very convenient if you need to use it from another XAML. For these cases, the argument '*--template*' can be used to generate a control template that can be used this way:
+
+```
+json2xaml.py --template lottie lottie.json lottie.xaml
+```
+
+```
+<Grid
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid.Resources>
+    <ResourceDictionary Source="lottie.xaml"/>
+  </Grid.Resources>
+  <Control Template="{StaticResource lottie}"/>
+</Grid>
 ```
 
 ## Features supported
@@ -61,9 +95,9 @@ usage: json2xaml.py [-h] [--version] [--debug] json_file xaml_file
 | Skew |                          ⛔️
 | **Interpolation**
 | Linear Interpolation |          👍
-| Bezier Interpolation |          ⛔️
+| Bezier Interpolation |          👍
 | Hold Interpolation |            👍
-| Spatial Bezier Interpolation |  👍
+| Spatial Bezier Interpolation |  ⛔️
 | Rove Across Time |              ⛔️
 | **Masks**
 | Mask Path |                     ⛔️
@@ -113,7 +147,7 @@ usage: json2xaml.py [-h] [--version] [--debug] json_file xaml_file
 | expression selector |           ⛔️
 | **Other**
 | Expressions |                   ⛔️
-| Images |                        ⛔️
+| Images |                        👍
 | Precomps |                      👍
 | Time Stretch |                  ⛔️
 | Time remap |                    ⛔️

@@ -7,7 +7,7 @@ import math
 from collections import namedtuple
 from argparse import ArgumentParser
 
-__version__ = "0.41"
+__version__ = "0.51"
 
 # Bodymovin JSON to XAML converter
 # See: https://github.com/airbnb/lottie-web/tree/master/docs/json for the (usually out-of-date) schema
@@ -16,7 +16,7 @@ __version__ = "0.41"
 Keyframe = namedtuple('Keyframe', 'time value easing to ti')
 Animation = namedtuple('Animation', 'first keyframes')
 Transform = namedtuple('Transform', 'anchor position scale rotation opacity')
-Asset = namedtuple('Asset', 'id layers')
+Asset = namedtuple('Asset', 'id source layers')
 
 Gradient = namedtuple('Gradient', 'start end length angle stops')
 Stroke = namedtuple('Stroke', 'opacity color gradient width line_cap line_join miter_limit dash_offset dash_array')
@@ -107,13 +107,12 @@ def vec2_rot(v, center, angle):
     return (center[0] + cos * x - sin * y, center[1] + sin * x + cos * y)
 
 class JsonParser:
-    def __init__(self, debug):
+    def __init__(self, debug, template, repeat):
         self.animations = ''
         self.body = ''
         self.context = []
         self.num_paths = 0
         self.num_groups = 0
-        self.tab = ''
         self.assets = []
         self.noesis_namespace = False
         self.start = 0
@@ -122,6 +121,10 @@ class JsonParser:
         self.width = 0
         self.height = 0
         self.debug = debug
+        self.template = template
+        self.tab = '    ' if template else ''
+        self.ani_tab = '  ' if template else ''
+        self.repeat = repeat
 
     def parse(self, input, output):
         colorama.init(autoreset = True)
@@ -132,27 +135,59 @@ class JsonParser:
         self.read_composition(obj)
 
         with open(output, 'w') as f:
-            f.write('<Canvas\n')
-            f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
-            if self.noesis_namespace:
-                f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
-            f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"\n')
-            f.write('  Width="%d" Height="%d">\n\n' % (self.width, self.height))
 
-            if self.animations:
-                f.write('  <Canvas.Resources>\n')
-                f.write('    <Storyboard x:Key="Anims" Duration="%s">\n' % self.as_time(self.end - self.start))
-                f.write(self.animations)
-                f.write('    </Storyboard>\n')
-                f.write('  </Canvas.Resources>\n\n')
-                f.write('  <Canvas.Triggers>\n')
-                f.write('    <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
-                f.write('      <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
-                f.write('    </EventTrigger>\n')
-                f.write('  </Canvas.Triggers>\n\n')
+            repeat_behavior = ' RepeatBehavior="%s"' % self.repeat if self.repeat else ""
 
-            f.write(self.body)
-            f.write('\n</Canvas>')
+            if self.template:
+                f.write('<ResourceDictionary\n')
+                f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
+                if self.noesis_namespace:
+                    f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
+                f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n\n')
+
+                print(output)
+                f.write('  <ControlTemplate x:Key="%s" TargetType="Control">\n' % self.template)
+
+                if self.animations:
+                    f.write('    <ControlTemplate.Resources>\n')
+                    f.write('      <Storyboard x:Key="Anims" Duration="%s"%s>\n' % (self.as_time(self.end - self.start), repeat_behavior))
+                    f.write(self.animations)
+                    f.write('      </Storyboard>\n')
+                    f.write('    </ControlTemplate.Resources>\n\n')
+
+                    f.write('    <ControlTemplate.Triggers>\n')
+                    f.write('      <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
+                    f.write('        <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
+                    f.write('      </EventTrigger>\n')
+                    f.write('    </ControlTemplate.Triggers>\n\n')
+
+                f.write('    <Canvas Width="%d" Height="%d">\n' % (self.width, self.height))
+                f.write(self.body)
+                f.write('    </Canvas>\n')
+                f.write('  </ControlTemplate>\n')
+                f.write('\n</ResourceDictionary>')
+            else:
+                f.write('<Canvas\n')
+                f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
+                if self.noesis_namespace:
+                    f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
+                f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"\n')
+                f.write('  Width="%d" Height="%d">\n\n' % (self.width, self.height))
+
+                if self.animations:
+                    f.write('  <Canvas.Resources>\n')
+                    f.write('    <Storyboard x:Key="Anims" Duration="%s">\n' % self.as_time(self.end - self.start))
+                    f.write(self.animations)
+                    f.write('    </Storyboard>\n')
+                    f.write('  </Canvas.Resources>\n\n')
+                    f.write('  <Canvas.Triggers>\n')
+                    f.write('    <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
+                    f.write('      <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
+                    f.write('    </EventTrigger>\n')
+                    f.write('  </Canvas.Triggers>\n\n')
+
+                f.write(self.body)
+                f.write('\n</Canvas>')
 
     def clear_body(self):
         body = self.body
@@ -315,6 +350,7 @@ class JsonParser:
         self.begin_reading("animation", obj)
         unused_animated = self.read_field('a', None)
         unused_index = self.read_field('ix', None)
+        unused_l = self.read_field('l', None)
         k = self.read_field('k', None)
 
         values = None
@@ -425,33 +461,33 @@ class JsonParser:
 
     def write_float_animation(self, obj, property, name, scale = 1, offset = 0):
         if obj.keyframes:
-            self.animations += '      <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="%s" Storyboard.TargetName="%s">\n' % (property, name)
+            self.animations += self.ani_tab + '      <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="%s" Storyboard.TargetName="%s">\n' % (property, name)
             for k in obj.keyframes:
                 if k.easing == EASING_DISCRETE: kind = 'DiscreteDoubleKeyFrame'
                 elif k.easing == EASING_LINEAR: kind = 'LinearDoubleKeyFrame'
                 else: kind = 'SplineDoubleKeyFrame KeySpline="%s,%s %s,%s"' % (k.easing[0][0], k.easing[0][1], k.easing[1][0],k.easing[1][1])
-                self.animations += '        <%s KeyTime="%s" Value="%s"/>\n' % (kind, self.as_time(k.time), format_float(k.value * scale + offset))
-            self.animations += '      </DoubleAnimationUsingKeyFrames>\n'
+                self.animations += self.ani_tab + '        <%s KeyTime="%s" Value="%s"/>\n' % (kind, self.as_time(k.time), format_float(k.value * scale + offset))
+            self.animations += self.ani_tab + '      </DoubleAnimationUsingKeyFrames>\n'
 
     def write_point_animation(self, obj, property, name):
         if obj.keyframes:
-            self.animations += '      <PointAnimationUsingKeyFrames Storyboard.TargetProperty="%s" Storyboard.TargetName="%s">\n' % (property, name)
+            self.animations += self.ani_tab + '      <PointAnimationUsingKeyFrames Storyboard.TargetProperty="%s" Storyboard.TargetName="%s">\n' % (property, name)
             for k in obj.keyframes:
                 if k.easing == EASING_DISCRETE: kind = 'DiscretePointKeyFrame'
                 elif k.easing == EASING_LINEAR: kind = 'LinearPointKeyFrame'
                 else: kind = 'SplinePointKeyFrame KeySpline="%s,%s %s,%s"' % (k.easing[0][0], k.easing[0][1], k.easing[1][0],k.easing[1][1])
-                self.animations += '        <%s KeyTime="%s" Value="%s,%s"/>\n' % (kind, self.as_time(k.time), format_float(k.value[0]), format_float(k.value[1]))
-            self.animations += '      </PointAnimationUsingKeyFrames>\n'
+                self.animations += self.ani_tab + '        <%s KeyTime="%s" Value="%s,%s"/>\n' % (kind, self.as_time(k.time), format_float(k.value[0]), format_float(k.value[1]))
+            self.animations += self.ani_tab + '      </PointAnimationUsingKeyFrames>\n'
 
     def write_color_animation(self, obj, property, name):
         if obj.keyframes:
-            self.animations += '      <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="%s" Storyboard.TargetName="%s">\n' % (property, name)
+            self.animations += self.ani_tab + '      <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="%s" Storyboard.TargetName="%s">\n' % (property, name)
             for k in obj.keyframes:
                 if k.easing == EASING_DISCRETE: kind = 'DiscreteColorKeyFrame'
                 elif k.easing == EASING_LINEAR: kind = 'LinearColorKeyFrame'
                 else: kind = 'SplineColorKeyFrame KeySpline="%s,%s %s,%s"' % (k.easing[0][0], k.easing[0][1], k.easing[1][0],k.easing[1][1])
-                self.animations += '        <%s KeyTime="%s" Value="#%s"/>\n' % (kind, self.as_time(k.time), k.value)
-            self.animations += '      </ColorAnimationUsingKeyFrames>\n'
+                self.animations += self.ani_tab + '        <%s KeyTime="%s" Value="#%s"/>\n' % (kind, self.as_time(k.time), k.value)
+            self.animations += self.ani_tab + '      </ColorAnimationUsingKeyFrames>\n'
 
     def read_transform(self, obj):
         self.begin_reading("transform", obj)
@@ -488,7 +524,7 @@ class JsonParser:
                obj.scale[0].first != 100 or obj.scale[1].first != 100 or \
                obj.rotation[0].first != 0
 
-    def write_transform_elements(self, obj, name):
+    def write_transform_elements(self, root_class, obj, name):
         scaling = self.is_animated(obj.scale[0]) or self.is_animated(obj.scale[1]) or obj.scale[0].first != 100 or obj.scale[1].first != 100
         rotating = self.is_animated(obj.rotation[0]) or obj.rotation[0].first != 0
         moving = self.is_animated(obj.position[0]) or self.is_animated(obj.position[1]) or \
@@ -500,7 +536,7 @@ class JsonParser:
         if self.is_animated(obj.anchor[0]) or self.is_animated(obj.anchor[1]):
             warning("Animated anchor points not supported")
 
-        self.body += self.tab + '    <Canvas.RenderTransform>\n'
+        self.body += self.tab + '    <%s.RenderTransform>\n' % root_class
         if use_group: self.body += self.tab + '      <TransformGroup>\n'
 
         if scaling:
@@ -555,18 +591,18 @@ class JsonParser:
                 self.write_float_animation(obj.position[1], 'RenderTransform.Y', name, 1.0, -obj.anchor[1].first)
 
         if use_group: self.body += self.tab + '      </TransformGroup>\n'
-        self.body += self.tab + '    </Canvas.RenderTransform>\n'
+        self.body += self.tab + '    </%s.RenderTransform>\n' % root_class
 
     def write_visibility_animations(self, name, start, end):
         write_start = start != 0
         write_end = end != self.end
         if write_start or write_end:
-            self.animations += '      <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility" Storyboard.TargetName="%s">\n' % name
+            self.animations += self.ani_tab + '      <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility" Storyboard.TargetName="%s">\n' % name
             if write_start:
-                self.animations += '        <DiscreteObjectKeyFrame KeyTime="%s" Value="{x:Static Visibility.Visible}"/>\n' % self.as_time(start)
+                self.animations += self.ani_tab + '        <DiscreteObjectKeyFrame KeyTime="%s" Value="{x:Static Visibility.Visible}"/>\n' % self.as_time(start)
             if write_end:
-                self.animations += '        <DiscreteObjectKeyFrame KeyTime="%s" Value="{x:Static Visibility.Hidden}"/>\n' % self.as_time(end)
-            self.animations += '      </ObjectAnimationUsingKeyFrames>\n'
+                self.animations += self.ani_tab + '        <DiscreteObjectKeyFrame KeyTime="%s" Value="{x:Static Visibility.Hidden}"/>\n' % self.as_time(end)
+            self.animations += self.ani_tab + '      </ObjectAnimationUsingKeyFrames>\n'
 
     def is_line(self, c0, c1, c2, c3):
         # This is an extreme simplification
@@ -1085,7 +1121,7 @@ class JsonParser:
 
                     self.body += '>\n'
                     if self.has_transform_elements(transform):
-                        self.write_transform_elements(transform, name)
+                        self.write_transform_elements("Canvas", transform, name)
 
             elif self.is_paint_attr(node):
                 paths = []
@@ -1131,6 +1167,12 @@ class JsonParser:
             self.body += self.tab + '  <Canvas RenderTransform="{Binding RenderTransform, ElementName=Layer%d}">\n' % index
             self.push_tab()
 
+    def find_asset(self, id):
+        for asset in self.assets:
+            if asset.id == id:
+                return asset
+        return None
+
     def write_layer(self, obj, layers, prefix=""):
         self.begin_reading('layer', obj)
         unused_name = self.read_field('nm')
@@ -1147,6 +1189,7 @@ class JsonParser:
         start = max(self.start, self.read_field('ip'))
         end = min(self.end, self.read_field('op'))
         time_stretch = self.read_field('sr', None)
+        refId = self.read_field('refId', None)
         ty = self.read_field('ty')
         # Solid 
         solid_width = self.read_field('sw', None)
@@ -1155,7 +1198,6 @@ class JsonParser:
         # Precomp
         unused_precomp_w = self.read_field('w', None)
         unused_precomp_h = self.read_field('h', None)
-        precomp_refId = self.read_field('refId', None)
         # Shape
         shapes = self.read_field('shapes', None)
         self.end_reading()
@@ -1175,11 +1217,17 @@ class JsonParser:
         name = 'Layer%s%d' % (prefix, index)
         self.write_parent_layers(parent, layers)
 
-        self.body += self.tab + '  <Canvas x:Name="%s"' % name
+        root_class = "Image" if ty == LAYER_TYPE_IMAGE else "Canvas"
+
+        self.body += self.tab + '  <%s x:Name="%s"' % (root_class, name)
 
         if ty == LAYER_TYPE_SOLID:
             self.body += ' Width="%d" Height="%d"' % (solid_width, solid_height)
             self.body += ' Background="%s"' % solid_color.upper()
+
+        if ty == LAYER_TYPE_IMAGE:
+            image = self.find_asset(refId)
+            self.body += ' Source="%s"' % image.source
 
         if ty != LAYER_TYPE_NULL:
             if transform.opacity[0].first != 100:
@@ -1194,24 +1242,19 @@ class JsonParser:
         num_lines = self.body.count('\n')
 
         if self.has_transform_elements(transform):
-            self.write_transform_elements(transform, name)
+            self.write_transform_elements(root_class, transform, name)
 
         if ty == LAYER_TYPE_PRECOMP:
-            for asset in self.assets:
-                if asset.id == precomp_refId:
-                    self.push_tab()
-                    for layer in asset.layers:
-                        self.write_layer(copy.deepcopy(layer), asset.layers, '%s%d_' % (prefix, index))
-                    self.pop_tab()
-                    break
+            self.push_tab()
+            asset = self.find_asset(refId)
+            for layer in asset.layers:
+                self.write_layer(copy.deepcopy(layer), asset.layers, '%s%d_' % (prefix, index))
+            self.pop_tab()
 
         if ty == LAYER_TYPE_SHAPE:
             if self.debug:
                 self.dump_shapes(shapes)
             self.write_shapes(shapes)
-
-        if ty == LAYER_TYPE_IMAGE:
-            warning("Unsupported LayerType 'Image'")
 
         if ty == LAYER_TYPE_TEXT:
             warning("Unsupported LayerType 'Text'")
@@ -1221,21 +1264,25 @@ class JsonParser:
             self.body = self.body[:-2]
             self.body += '/>\n'
         else:
-            self.body += self.tab + '  </Canvas>\n'
+            self.body += self.tab + '  </%s>\n' % root_class
 
         while self.tab != start_tab:
             self.pop_tab()
-            self.body += self.tab + '  </Canvas>\n'
+            self.body += self.tab + '  </%s>\n' % root_class
 
     def read_assets(self, obj):
         if obj:
             for asset in obj:
                 self.begin_reading('asset', asset)
                 id = self.read_field('id')
+                unused_e = self.read_field('e', 0)
+                unused_width = self.read_field('w', None)
+                unused_height = self.read_field('h', None)
+                path = self.read_field('u', "")
+                filename = self.read_field('p', "")
                 layers = self.read_field('layers', None)
-                if layers:
-                    layers.sort(key = lambda layer: layer['ind'], reverse = True)
-                    self.assets.append(Asset(id, layers))
+                if layers: layers.sort(key = lambda layer: layer['ind'], reverse = True)
+                self.assets.append(Asset(id, path + filename, layers))
                 self.end_reading
 
     def read_composition(self, obj):
@@ -1268,12 +1315,14 @@ class JsonParser:
 def main():
     arg_parser = ArgumentParser(description="Converts from After Effects Bodymovin format to Noesis XAML")
     arg_parser.add_argument("--version", action="version", version="%(prog)s "  + __version__)
-    arg_parser.add_argument("--debug", action='store_true', help="Dump layers information")
+    arg_parser.add_argument("--debug", action='store_true', help="dump layers information")
+    arg_parser.add_argument("--template", action='store', metavar='<key>', help="imports lottie as a control template resource")
+    arg_parser.add_argument("--repeat", action='store', metavar='<behavior>', help="describes how the animation repeats")
     arg_parser.add_argument("json_file", help="the JSON file to be converted from")
     arg_parser.add_argument("xaml_file", help="the XAML file to created")
 
     args = arg_parser.parse_args()
-    json_parser = JsonParser(args.debug)
+    json_parser = JsonParser(args.debug, args.template, args.repeat)
     json_parser.parse(args.json_file, args.xaml_file)
 
 if __name__ == "__main__":
