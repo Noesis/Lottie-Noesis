@@ -17,6 +17,7 @@ Keyframe = namedtuple('Keyframe', 'time value easing to ti')
 Animation = namedtuple('Animation', 'first keyframes')
 Transform = namedtuple('Transform', 'anchor position scale rotation opacity')
 Asset = namedtuple('Asset', 'id source layers')
+Font = namedtuple('Font', 'name path family style')
 
 Gradient = namedtuple('Gradient', 'start end length angle stops')
 Stroke = namedtuple('Stroke', 'opacity color gradient width line_cap line_join miter_limit dash_offset dash_array')
@@ -113,7 +114,9 @@ class JsonParser:
         self.context = []
         self.num_paths = 0
         self.num_groups = 0
+        self.num_texts = 0
         self.assets = []
+        self.fonts = []
         self.noesis_namespace = False
         self.start = 0
         self.end = 0
@@ -208,6 +211,11 @@ class JsonParser:
     def next_group_name(self):
         name = 'Group%d' % self.num_groups
         self.num_groups += 1
+        return name
+
+    def next_text_name(self):
+        name = 'Text%d' % self.num_texts
+        self.num_texts += 1
         return name
 
     def as_time(self, frame):
@@ -1159,6 +1167,153 @@ class JsonParser:
             if shape['ty'] == 'gr':
                 self.dump_shapes(shape['it'], level + 1)
 
+    def write_text(self, obj):
+        self.begin_reading('text_data', obj)
+        unused_more_options = self.read_field('m', None)
+        unused_path = self.read_field('p', None)
+        animators = self.read_field('a', None)
+        document = self.read_field('d', None)
+        self.end_reading()
+
+        self.begin_reading('text_document', document)
+        keyframes = self.read_field('k', None)
+        self.end_reading()
+
+        color_animation = None
+        opacity_animation = None
+        stroke_color_animation = None
+        stroke_opacity_animation = None
+
+        for animator in animators:
+            self.begin_reading('animator', animator)
+            animation = self.read_field('a', None)
+            unused_ranges = self.read_field('s', None)
+            unused_name = self.read_field('nm', None)
+            self.end_reading()
+
+            # Animator ranges are not supported, we are just taking first animation and ignoring the range
+            self.begin_reading('animation', animation)
+            color_animation = color_animation or self.read_animation_color(self.read_field('fc', None))
+            opacity_animation = opacity_animation or self.read_animation_float(self.read_field('fo', None))
+            stroke_color_animation = stroke_color_animation or self.read_animation_color(self.read_field('sc', None))
+            stroke_opacity_animation = stroke_opacity_animation or self.read_animation_float(self.read_field('so', None))
+            self.end_reading()
+
+        names = []
+        times = []
+
+        for k in keyframes:
+            self.begin_reading('text_keyframe', k)
+            time = self.read_field('t', None)
+            properties = self.read_field('s', None)
+            self.end_reading()
+
+            self.begin_reading('text_properties', properties)
+            unused_justify = self.read_field('j', None)
+            unused_ca = self.read_field('ca', None)
+            unused_of = self.read_field('of', None)
+            font_name = self.read_field('f', None)
+            text = self.read_field('t', "")
+            size = self.read_field('s', 0)
+            tracking = self.read_field('tr', 0)
+            line_height = self.read_field('lh', 0)
+            baseline_shift = self.read_field('ls', 0)
+            fill_color = self.read_field('fc', None)
+            stroke_color = self.read_field('sc', None)
+            stroke = self.read_field('sw', 0)
+            self.end_reading()
+
+            font = self.find_font(font_name)
+
+            weight = None
+            style = None
+
+            if "Thin" in font.style: weight = "Thin"
+            if "ExtraLight" in font.style: weight = "ExtraLight"
+            if "UltraLight" in font.style: weight = "UltraLight"
+            if "Light" in font.style: weight = "Light"
+            if "SemiLight" in font.style: weight = "SemiLight"
+            if "Medium" in font.style: weight = "Medium"
+            if "DemiBold" in font.style: weight = "DemiBold"
+            if "SemiBold" in font.style: weight = "SemiBold"
+            if "Bold" in font.style: weight = "Bold"
+            if "ExtraBold" in font.style: weight = "ExtraBold"
+            if "UltraBold" in font.style: weight = "UltraBold"
+            if "Black" in font.style: weight = "Black"
+            if "Heavy" in font.style: weight = "Heavy"
+            if "ExtraBlack" in font.style: weight = "ExtraBlack"
+            if "UltraBlack" in font.style: weight = "UltraBlack"
+            if "Italic" in font.style: style = "Italic"
+
+            text = text.replace('\r', '&#x0a;')
+
+            self.body += self.tab + '  <TextBlock'
+
+            name = None
+
+            if len(keyframes) > 1:
+                name = name or self.next_text_name()
+
+            if color_animation and self.is_animated(color_animation[0]):
+                name = name or self.next_text_name()
+                self.write_color_animation(color_animation[0], "Foreground.Color", name)
+
+            if opacity_animation and self.is_animated(opacity_animation[0]):
+                name = name or self.next_text_name()
+                self.write_float_animation(opacity_animation[0], "Foreground.Opacity", name, 0.01)
+
+            if stroke_color_animation and self.is_animated(stroke_color_animation[0]):
+                name = name or self.next_text_name()
+                self.write_color_animation(stroke_color_animation[0], "(noesis:Text.Stroke).Color", name)
+                self.noesis_namespace = True
+
+            if stroke_opacity_animation and self.is_animated(stroke_opacity_animation[0]):
+                name = name or self.next_text_name()
+                self.write_float_animation(stroke_opacity_animation[0], "(noesis:Text.Stroke).Opacity", name, 0.01)
+                self.noesis_namespace = True
+
+            if name:
+                self.body += ' x:Name="%s"' % name
+
+            self.body += ' FontFamily="%s" FontSize="%d" Text="%s"' % (font.path + "#" + font.family if font.path else font.family, size, text)
+            if weight:
+                self.body += ' FontWeight="%s"' % weight
+            if style:
+                self.body += ' FontStyle="%s"' % style
+
+            if color_animation or fill_color:
+                self.body += ' Foreground="#%s"' % (color_animation[0].first if color_animation else format_rgb(fill_color))
+            else:
+                self.body += ' Foreground="Transparent"'
+
+            if stroke > 0.01:
+                self.noesis_namespace = True
+                self.body += ' noesis:Text.StrokeThickness="%s"' % stroke
+                self.body += ' noesis:Text.Stroke="#%s"' % (stroke_color_animation[0].first if stroke_color_animation else format_rgb(stroke_color))
+
+            if tracking > 0:
+                self.noesis_namespace = True
+                self.body += ' noesis:Text.CharacterSpacing="%s"' % tracking
+
+            if time > 0:
+                self.body += ' Visibility="Hidden"'
+
+            names.append(name)
+            times.append(time)
+
+            self.body += '>\n'
+
+            self.body += self.tab + '    <TextBlock.RenderTransform>\n'
+            self.body += self.tab + '      <TranslateTransform Y="%s"/>\n' % format_float(-size - baseline_shift)
+            self.body += self.tab + '    </TextBlock.RenderTransform>\n'
+            self.body += self.tab + '  </TextBlock>\n'
+
+        times.append(self.end)
+
+        if len(keyframes) > 1:
+            for i in range(len(names)):
+                self.write_visibility_animations(names[i], times[i], times[i + 1])
+
     def write_parent_layers(self, index, layers):
         if index != None:
             for layer in layers:
@@ -1171,6 +1326,12 @@ class JsonParser:
         for asset in self.assets:
             if asset.id == id:
                 return asset
+        return None
+
+    def find_font(self, name):
+        for font in self.fonts:
+            if font.name == name:
+                return font
         return None
 
     def write_layer(self, obj, layers, prefix=""):
@@ -1200,6 +1361,8 @@ class JsonParser:
         unused_precomp_h = self.read_field('h', None)
         # Shape
         shapes = self.read_field('shapes', None)
+        # Text
+        text_data = self.read_field('t', None)
         self.end_reading()
 
         if time_stretch != 1:
@@ -1257,7 +1420,9 @@ class JsonParser:
             self.write_shapes(shapes)
 
         if ty == LAYER_TYPE_TEXT:
-            warning("Unsupported LayerType 'Text'")
+            self.push_tab()
+            self.write_text(text_data)
+            self.pop_tab()
 
         # Don't add extra line if no elements were written
         if num_lines == self.body.count('\n'):
@@ -1283,7 +1448,25 @@ class JsonParser:
                 layers = self.read_field('layers', None)
                 if layers: layers.sort(key = lambda layer: layer['ind'], reverse = True)
                 self.assets.append(Asset(id, path + filename, layers))
-                self.end_reading
+                self.end_reading()
+
+    def read_fonts(self, obj):
+        if obj:
+            self.begin_reading('fonts', obj)
+            fonts = self.read_field('list')
+            for font in fonts:
+                self.begin_reading('font', font)
+                origin = self.read_field('origin', None)
+                fClass = self.read_field('fClass', None)
+                fFamily = self.read_field('fFamily', None)
+                fStyle = self.read_field('fStyle', None)
+                fWeight = self.read_field('fWeight', None)
+                ascent = self.read_field('ascent', None)
+                fName = self.read_field('fName', None)
+                fPath = self.read_field('fPath', None)
+                self.fonts.append(Font(fName, fPath, fFamily, fStyle))
+                self.end_reading()
+            self.end_reading()
 
     def read_composition(self, obj):
         self.begin_reading('composition', obj)
@@ -1298,6 +1481,8 @@ class JsonParser:
         unused_is_3d = self.read_field('ddd')
         unused_markers = self.read_field('markers', None)
         self.read_assets(self.read_field('assets', None))
+        self.read_fonts(self.read_field('fonts', None))
+        unused_chars = self.read_field('chars', None)
         self.end_reading()
 
         if self.start != 0:

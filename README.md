@@ -68,13 +68,13 @@ json2xaml.py --template lottie lottie.json lottie.xaml
 | Repeater |                      ⛔️
 | Trim Path (individually) |      👍
 | Trim Path (simultaneously) |    ⛔️
-| **Fills**
+| **Fills** | Supported |
 | Color |                         👍
 | Opacity |                       👍
 | Fill Rule |                     👍
 | Radial Gradient |               👍
 | Linear Gradient |               👍
-| **Strokes**
+| **Strokes** | Supported |
 | Color |                         👍
 | Opacity |                       👍
 | Width |                         👍
@@ -83,7 +83,7 @@ json2xaml.py --template lottie lottie.json lottie.xaml
 | Miter Limit |                   👍
 | Dashes |                        👍
 | Gradient |                      👍
-| **Transforms**
+| **Transforms** | Supported |
 | Position |                      👍
 | Position (separated X/Y) |      👍
 | Scale |                         👍
@@ -93,13 +93,13 @@ json2xaml.py --template lottie lottie.json lottie.xaml
 | Parenting |                     👍
 | Auto Orient |                   ⛔️
 | Skew |                          ⛔️
-| **Interpolation**
+| **Interpolation** | Supported |
 | Linear Interpolation |          👍
 | Bezier Interpolation |          👍
 | Hold Interpolation |            👍
 | Spatial Bezier Interpolation |  ⛔️
 | Rove Across Time |              ⛔️
-| **Masks**
+| **Masks** | Supported |
 | Mask Path |                     ⛔️
 | Mask Opacity |                  ⛔️
 | Add |                           ⛔️
@@ -110,30 +110,30 @@ json2xaml.py --template lottie lottie.json lottie.xaml
 | Difference |                    ⛔️
 | Expansion |                     ⛔️
 | Feather |                       ⛔️
-| **Mattes**
+| **Mattes** | Supported |
 | Alpha Matte |                   ⛔️
 | Alpha Inverted Matte |          ⛔️
 | Luma Matte |                    ⛔️
 | Luma Inverted Matte |           ⛔️
-| **Merge Paths**
+| **Merge Paths** | Supported |
 | Merge |                         ⛔️
 | Add |                           ⛔️
 | Subtract |                      ⛔️
 | Intersect |                     ⛔️
 | Exclude Intersection |          ⛔️
-| **Layer Effects**
+| **Layer Effects** | Supported |
 | Fill |                          ⛔️
 | Stroke |                        ⛔️
 | Tint |                          ⛔️
 | Tritone |                       ⛔️
 | Levels Individual Controls |    ⛔️
-| **Text** |
-| Glyphs |                        ⛔️
-| Fonts |                         ⛔️
-| Transform |                     ⛔️
-| Fill |                          ⛔️
-| Stroke |                        ⛔️
-| Tracking |                      ⛔️
+| **Text**  | Supported |
+| Glyphs |                        👍
+| Fonts |                         👍
+| Transform |                     👍
+| Fill |                          👍
+| Stroke |                        👍
+| Tracking |                      👍
 | Anchor point grouping |         ⛔️
 | Text Path |                     ⛔️
 | Per-character 3D |              ⛔️
@@ -145,7 +145,7 @@ json2xaml.py --template lottie lottie.json lottie.xaml
 | Range selector (Ease Low)  |    ⛔️
 | Range selector (Randomize order) | ⛔️
 | expression selector |           ⛔️
-| **Other**
+| **Other** | Supported |
 | Expressions |                   ⛔️
 | Images |                        👍
 | Precomps |                      👍
