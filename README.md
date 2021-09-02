@@ -18,7 +18,8 @@ Click on [Sample0](https://www.noesisengine.com/xamltoy/e4c6986363164dabcb6e0ea8
 Use the Python script to convert from .json to .xaml:
 
 ```
-usage: json2xaml.py [-h] [--version] [--debug] [--viewbox] [--template <key>] [--repeat <behavior>] json_file xaml_file
+usage: json2xaml.py [-h] [--version] [--debug] [--viewbox] [--template <key>]
+                    [--repeat <behavior>] json_file xaml_file
 
 Converts from After Effects Bodymovin format to Noesis XAML
 
