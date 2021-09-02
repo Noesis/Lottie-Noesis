@@ -4,10 +4,11 @@ import codecs
 import colorama
 import copy
 import math
+import re
 from collections import namedtuple
 from argparse import ArgumentParser
 
-__version__ = "0.51"
+__version__ = "0.60"
 
 # Bodymovin JSON to XAML converter
 # See: https://github.com/airbnb/lottie-web/tree/master/docs/json for the (usually out-of-date) schema
@@ -17,7 +18,7 @@ Keyframe = namedtuple('Keyframe', 'time value easing to ti')
 Animation = namedtuple('Animation', 'first keyframes')
 Transform = namedtuple('Transform', 'anchor position scale rotation opacity')
 Asset = namedtuple('Asset', 'id source layers')
-Font = namedtuple('Font', 'name path family style')
+Font = namedtuple('Font', 'name path family style ascent')
 
 Gradient = namedtuple('Gradient', 'start end length angle stops')
 Stroke = namedtuple('Stroke', 'opacity color gradient width line_cap line_join miter_limit dash_offset dash_array')
@@ -108,7 +109,7 @@ def vec2_rot(v, center, angle):
     return (center[0] + cos * x - sin * y, center[1] + sin * x + cos * y)
 
 class JsonParser:
-    def __init__(self, debug, template, repeat):
+    def __init__(self, debug, viewbox, template, repeat):
         self.animations = ''
         self.body = ''
         self.context = []
@@ -124,10 +125,24 @@ class JsonParser:
         self.width = 0
         self.height = 0
         self.debug = debug
+        self.viewbox = viewbox
         self.template = template
-        self.tab = '    ' if template else ''
-        self.ani_tab = '  ' if template else ''
         self.repeat = repeat
+
+        if template:
+            if viewbox:
+                self.tab = '      '
+                self.ani_tab = '  '
+            else:
+                self.tab = '    '
+                self.ani_tab = '  '
+        else:
+            if viewbox:
+                self.tab = '  '
+                self.ani_tab = '  '
+            else:
+                self.tab = ''
+                self.ani_tab = ''
 
     def parse(self, input, output):
         colorama.init(autoreset = True)
@@ -142,55 +157,109 @@ class JsonParser:
             repeat_behavior = ' RepeatBehavior="%s"' % self.repeat if self.repeat else ""
 
             if self.template:
-                f.write('<ResourceDictionary\n')
-                f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
-                if self.noesis_namespace:
-                    f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
-                f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n\n')
+                if self.viewbox:
+                    f.write('<ResourceDictionary\n')
+                    f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
+                    if self.noesis_namespace:
+                        f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
+                    f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n\n')
 
-                print(output)
-                f.write('  <ControlTemplate x:Key="%s" TargetType="Control">\n' % self.template)
+                    f.write('  <ControlTemplate x:Key="%s" TargetType="Control">\n' % self.template)
 
-                if self.animations:
-                    f.write('    <ControlTemplate.Resources>\n')
-                    f.write('      <Storyboard x:Key="Anims" Duration="%s"%s>\n' % (self.as_time(self.end - self.start), repeat_behavior))
-                    f.write(self.animations)
-                    f.write('      </Storyboard>\n')
-                    f.write('    </ControlTemplate.Resources>\n\n')
+                    if self.animations:
+                        f.write('    <ControlTemplate.Resources>\n')
+                        f.write('      <Storyboard x:Key="Anims" Duration="%s"%s>\n' % (self.as_time(self.end - self.start), repeat_behavior))
+                        f.write(self.animations)
+                        f.write('      </Storyboard>\n')
+                        f.write('    </ControlTemplate.Resources>\n\n')
 
-                    f.write('    <ControlTemplate.Triggers>\n')
-                    f.write('      <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
-                    f.write('        <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
-                    f.write('      </EventTrigger>\n')
-                    f.write('    </ControlTemplate.Triggers>\n\n')
+                        f.write('    <ControlTemplate.Triggers>\n')
+                        f.write('      <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
+                        f.write('        <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
+                        f.write('      </EventTrigger>\n')
+                        f.write('    </ControlTemplate.Triggers>\n\n')
 
-                f.write('    <Canvas Width="%d" Height="%d">\n' % (self.width, self.height))
-                f.write(self.body)
-                f.write('    </Canvas>\n')
-                f.write('  </ControlTemplate>\n')
-                f.write('\n</ResourceDictionary>')
+                    f.write('    <Viewbox>\n')
+                    f.write('      <Canvas Width="%d" Height="%d">\n' % (self.width, self.height))
+                    f.write(self.body)
+                    f.write('      </Canvas>\n')
+                    f.write('    </Viewbox>\n')
+                    f.write('  </ControlTemplate>\n')
+                    f.write('\n</ResourceDictionary>')
+                else:
+                    f.write('<ResourceDictionary\n')
+                    f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
+                    if self.noesis_namespace:
+                        f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
+                    f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n\n')
+
+                    f.write('  <ControlTemplate x:Key="%s" TargetType="Control">\n' % self.template)
+
+                    if self.animations:
+                        f.write('    <ControlTemplate.Resources>\n')
+                        f.write('      <Storyboard x:Key="Anims" Duration="%s"%s>\n' % (self.as_time(self.end - self.start), repeat_behavior))
+                        f.write(self.animations)
+                        f.write('      </Storyboard>\n')
+                        f.write('    </ControlTemplate.Resources>\n\n')
+
+                        f.write('    <ControlTemplate.Triggers>\n')
+                        f.write('      <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
+                        f.write('        <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
+                        f.write('      </EventTrigger>\n')
+                        f.write('    </ControlTemplate.Triggers>\n\n')
+
+                    f.write('    <Canvas Width="%d" Height="%d">\n' % (self.width, self.height))
+                    f.write(self.body)
+                    f.write('    </Canvas>\n')
+                    f.write('  </ControlTemplate>\n')
+                    f.write('\n</ResourceDictionary>')
             else:
-                f.write('<Canvas\n')
-                f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
-                if self.noesis_namespace:
-                    f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
-                f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"\n')
-                f.write('  Width="%d" Height="%d">\n\n' % (self.width, self.height))
+                if self.viewbox:
+                    f.write('<Viewbox\n')
+                    f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
+                    if self.noesis_namespace:
+                        f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
+                    f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n\n')
 
-                if self.animations:
-                    f.write('  <Canvas.Resources>\n')
-                    f.write('    <Storyboard x:Key="Anims" Duration="%s">\n' % self.as_time(self.end - self.start))
-                    f.write(self.animations)
-                    f.write('    </Storyboard>\n')
-                    f.write('  </Canvas.Resources>\n\n')
-                    f.write('  <Canvas.Triggers>\n')
-                    f.write('    <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
-                    f.write('      <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
-                    f.write('    </EventTrigger>\n')
-                    f.write('  </Canvas.Triggers>\n\n')
+                    f.write('  <Canvas Width="%d" Height="%d">\n\n' % (self.width, self.height))
 
-                f.write(self.body)
-                f.write('\n</Canvas>')
+                    if self.animations:
+                        f.write('    <Canvas.Resources>\n')
+                        f.write('      <Storyboard x:Key="Anims" Duration="%s">\n' % self.as_time(self.end - self.start))
+                        f.write(self.animations)
+                        f.write('      </Storyboard>\n')
+                        f.write('    </Canvas.Resources>\n\n')
+                        f.write('    <Canvas.Triggers>\n')
+                        f.write('      <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
+                        f.write('        <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
+                        f.write('      </EventTrigger>\n')
+                        f.write('    </Canvas.Triggers>\n\n')
+
+                    f.write(self.body)
+                    f.write('\n  </Canvas>\n')
+                    f.write('\n</Viewbox>')
+                else:
+                    f.write('<Canvas\n')
+                    f.write('  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n')
+                    if self.noesis_namespace:
+                        f.write('  xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"\n')
+                    f.write('  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"\n')
+                    f.write('  Width="%d" Height="%d">\n\n' % (self.width, self.height))
+
+                    if self.animations:
+                        f.write('  <Canvas.Resources>\n')
+                        f.write('    <Storyboard x:Key="Anims" Duration="%s">\n' % self.as_time(self.end - self.start))
+                        f.write(self.animations)
+                        f.write('    </Storyboard>\n')
+                        f.write('  </Canvas.Resources>\n\n')
+                        f.write('  <Canvas.Triggers>\n')
+                        f.write('    <EventTrigger RoutedEvent="FrameworkElement.Loaded">\n')
+                        f.write('      <BeginStoryboard Storyboard="{StaticResource Anims}"/>\n')
+                        f.write('    </EventTrigger>\n')
+                        f.write('  </Canvas.Triggers>\n\n')
+
+                    f.write(self.body)
+                    f.write('\n</Canvas>')
 
     def clear_body(self):
         body = self.body
@@ -516,6 +585,32 @@ class JsonParser:
 
         return Transform(anchor, position, scale, rotation, opacity)
 
+    def read_mask(self, obj):
+        mask = []
+        if obj:
+            for m in obj:
+                self.begin_reading("mask", m)
+                unused_name = self.read_field('nm', None)
+                opacity = self.read_animation_float(self.read_field('o', None))
+                if not self.is_constant(opacity[0], 100):
+                    warning('Mask Opacity not supported')
+                expansion = self.read_animation_float2(self.read_field('x', None))
+                if not self.is_constant(expansion[0], 0):
+                    warning('Mask Expansion not supported')
+                inverted = self.read_field('inv', False)
+                if inverted:
+                    warning('Inverted Masks not supported')
+                mode = self.read_field('mode', 'a')
+                if mode != 'a':
+                    warning('Only "Add" mode supported for Masks')
+                mask.append(self.read_animation_path(self.read_field('pt', None)))
+                self.end_reading()
+
+        return mask
+
+    def is_constant(self, obj, val):
+        return not self.is_animated(obj) and obj.first == val
+
     def is_animated(self, obj):
         return obj is not None and obj.keyframes is not None
 
@@ -600,6 +695,56 @@ class JsonParser:
 
         if use_group: self.body += self.tab + '      </TransformGroup>\n'
         self.body += self.tab + '    </%s.RenderTransform>\n' % root_class
+
+    def has_mask_elements(self, obj):
+        mask_animated = False
+        for path in obj:
+            mask_animated = mask_animated or any(self.is_animated(v) for v in path)
+        return mask_animated
+
+    def write_mask_attributes(self, obj):
+        data = ''
+        for path in obj:
+            data += 'M%s,%s' % (format_float(path[0].first[0]), format_float(path[0].first[1]))
+            last_segment = ''
+            for s in self.gen_segments(path):
+                if s[0] == 'L':
+                    data += 'L' if last_segment != 'L' else ' '
+                    data += '%s,%s' % (format_float(s[1][0]), format_float(s[1][1]))
+                else:
+                    data += 'C' if last_segment != 'C' else ' '
+                    data += '%s,%s %s,%s,%s,%s' % (format_float(s[1][0]), format_float(s[1][1]), \
+                        format_float(s[2][0]), format_float(s[2][1]), \
+                        format_float(s[3][0]), format_float(s[3][1]))
+                last_segment = s[0]
+
+        if data:
+            self.body += ' Clip="%s"' % data
+
+    def write_mask_elements(self, root_class, obj, name):
+        self.body += self.tab + '    <%s.Clip>\n' % root_class
+        self.body += self.tab +  '      <PathGeometry>\n'
+        for path in obj:
+            self.body += self.tab +  '        <PathFigure StartPoint="%s,%s">\n' % (format_float(path[0].first[0]), format_float(path[0].first[1]))
+            for s in self.gen_segments(path):
+                if s[0] == 'L':
+                    self.body += self.tab + '          <LineSegment Point="%s,%s"/>\n' % (format_float(s[1][0]), format_float(s[1][1]))
+                else:
+                    self.body += self.tab + '          <BezierSegment Point1="%s,%s" Point2="%s,%s" Point3="%s,%s"/>\n' \
+                        % (format_float(s[1][0]), format_float(s[1][1]), format_float(s[2][0]), format_float(s[2][1]), format_float(s[3][0]), format_float(s[3][1]))
+            self.body += self.tab + '        </PathFigure>\n'
+        self.body += self.tab +  '      </PathGeometry>\n'
+        self.body += self.tab + '    </%s.Clip>\n' % root_class
+
+        for figure_idx in range(len(obj)):
+            path = obj[figure_idx]
+            self.write_point_animation(path[0], 'Clip.Figures[%d].StartPoint' % figure_idx, name)
+
+            for i in range(1, len(path), 3):
+                segment_idx = (i - 1) / 3
+                self.write_point_animation(path[i], 'Clip.Figures[%d].Segments[%d].Point1' % (figure_idx, segment_idx), name)
+                self.write_point_animation(path[i + 1], 'Clip.Figures[%d].Segments[%d].Point2' % (figure_idx, segment_idx), name)
+                self.write_point_animation(path[i + 2], 'Clip.Figures[%d].Segments[%d].Point3' % (figure_idx, segment_idx), name)
 
     def write_visibility_animations(self, name, start, end):
         write_start = start != 0
@@ -898,32 +1043,18 @@ class JsonParser:
                 geometry = ""
 
                 if r == 0:
-                    if direction == 2:
-                        geometry += "M%s,%s" % (format_float(x + w * 0.5), format_float(y - h * 0.5))
-                        geometry += "v%s" % format_float(h)
-                        geometry += "h%s" % format_float(-w)
-                        geometry += "v%s" % format_float(-h)
-                    else:
+                    if direction == 3:
                         geometry += "M%s,%s" % (format_float(x + w * 0.5), format_float(y - h * 0.5))
                         geometry += "h%s" % format_float(-w)
                         geometry += "v%s" % format_float(h)
                         geometry += "h%s" % format_float(w)
-                else:
-                    if direction == 2:
-                        geometry += "M%s,%s" % (format_float(x + w * 0.5), format_float(y - h * 0.5 + r))
-                        if h - 2 * r > 0:
-                            geometry += "v%s" % format_float(h - 2 * r)
-                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(-r), format_float(r))
-                        if w - 2 * r > 0:
-                            geometry += "h%s" % format_float(2 * r - w)
-                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(-r), format_float(-r))
-                        if h - 2 * r > 0:
-                            geometry += "v%s" % format_float(2 * r - h)
-                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(r), format_float(-r))
-                        if w - 2 * r > 0:
-                            geometry += "h%s" % format_float(w - 2 * r)
-                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(r), format_float(r))
                     else:
+                        geometry += "M%s,%s" % (format_float(x + w * 0.5), format_float(y - h * 0.5))
+                        geometry += "v%s" % format_float(h)
+                        geometry += "h%s" % format_float(-w)
+                        geometry += "v%s" % format_float(-h)
+                else:
+                    if direction == 3:
                         geometry += "M%s,%s" % (format_float(x + w * 0.5), format_float(y - h * 0.5 + r))
                         geometry += "a%s,%s,0,0,0,%s,%s" % (format_float(r), format_float(r), format_float(-r), format_float(-r))
                         if w - 2 * r > 0:
@@ -937,6 +1068,20 @@ class JsonParser:
                         geometry += "a%s,%s,0,0,0,%s,%s" % (format_float(r), format_float(r), format_float(r), format_float(-r))
                         if h - 2 * r > 0:
                             geometry += "v%s" % format_float(2 * r - h)
+                    else:
+                        geometry += "M%s,%s" % (format_float(x + w * 0.5), format_float(y - h * 0.5 + r))
+                        if h - 2 * r > 0:
+                            geometry += "v%s" % format_float(h - 2 * r)
+                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(-r), format_float(r))
+                        if w - 2 * r > 0:
+                            geometry += "h%s" % format_float(2 * r - w)
+                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(-r), format_float(-r))
+                        if h - 2 * r > 0:
+                            geometry += "v%s" % format_float(2 * r - h)
+                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(r), format_float(-r))
+                        if w - 2 * r > 0:
+                            geometry += "h%s" % format_float(w - 2 * r)
+                        geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(r), format_float(r), format_float(r), format_float(r))
 
                 geometry += "Z"
                 paths.append(geometry)
@@ -963,14 +1108,14 @@ class JsonParser:
 
                 geometry = ""
 
-                if direction == 2:
-                    geometry += "M%s,%s" % (format_float(x), format_float(y - ry))
-                    geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(rx), format_float(ry), format_float(0.0), format_float(2 * ry))
-                    geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(rx), format_float(ry), format_float(0.0), format_float(-2 * ry))
-                else:
+                if direction == 3:
                     geometry += "M%s,%s" % (format_float(x), format_float(y - ry))
                     geometry += "a%s,%s,0,0,0,%s,%s" % (format_float(rx), format_float(ry), format_float(0.0), format_float(2 * ry))
                     geometry += "a%s,%s,0,0,0,%s,%s" % (format_float(rx), format_float(ry), format_float(0.0), format_float(-2 * ry))
+                else:
+                    geometry += "M%s,%s" % (format_float(x), format_float(y - ry))
+                    geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(rx), format_float(ry), format_float(0.0), format_float(2 * ry))
+                    geometry += "a%s,%s,0,0,1,%s,%s" % (format_float(rx), format_float(ry), format_float(0.0), format_float(-2 * ry))
 
                 geometry += "Z"
                 paths.append(geometry)
@@ -1209,9 +1354,9 @@ class JsonParser:
             self.end_reading()
 
             self.begin_reading('text_properties', properties)
-            unused_justify = self.read_field('j', None)
             unused_ca = self.read_field('ca', None)
             unused_of = self.read_field('of', None)
+            justify = self.read_field('j', None)
             font_name = self.read_field('f', None)
             text = self.read_field('t', "")
             size = self.read_field('s', 0)
@@ -1223,27 +1368,38 @@ class JsonParser:
             stroke = self.read_field('sw', 0)
             self.end_reading()
 
+            if justify != 0:
+                warning('Only Left-Aligned text is supported. Please change to "Left Align Text" and adjust "Anchor Point"')
+
             font = self.find_font(font_name)
+            ascent = font.ascent * size / 100
+
+            # This is just an approximation as we don't have enough information to get the baseline
+            # 'size = ascent + descent' is assumed here
+            descent = size - ascent
+            line_gap = line_height - (ascent + descent)
+            baseline = line_gap * 0.5 + ascent
 
             weight = None
             style = None
 
-            if "Thin" in font.style: weight = "Thin"
-            if "ExtraLight" in font.style: weight = "ExtraLight"
-            if "UltraLight" in font.style: weight = "UltraLight"
-            if "Light" in font.style: weight = "Light"
-            if "SemiLight" in font.style: weight = "SemiLight"
-            if "Medium" in font.style: weight = "Medium"
-            if "DemiBold" in font.style: weight = "DemiBold"
-            if "SemiBold" in font.style: weight = "SemiBold"
-            if "Bold" in font.style: weight = "Bold"
-            if "ExtraBold" in font.style: weight = "ExtraBold"
-            if "UltraBold" in font.style: weight = "UltraBold"
-            if "Black" in font.style: weight = "Black"
-            if "Heavy" in font.style: weight = "Heavy"
-            if "ExtraBlack" in font.style: weight = "ExtraBlack"
-            if "UltraBlack" in font.style: weight = "UltraBlack"
-            if "Italic" in font.style: style = "Italic"
+            if   re.search("ExtraLight", font.style, re.IGNORECASE): weight = "ExtraLight"
+            elif re.search("UltraLight", font.style, re.IGNORECASE): weight = "UltraLight"
+            elif re.search("SemiLight", font.style, re.IGNORECASE): weight = "SemiLight"
+            elif re.search("Light", font.style, re.IGNORECASE): weight = "Light"
+            elif re.search("Thin", font.style, re.IGNORECASE): weight = "Thin"
+            elif re.search("Medium", font.style, re.IGNORECASE): weight = "Medium"
+            elif re.search("DemiBold", font.style, re.IGNORECASE): weight = "DemiBold"
+            elif re.search("SemiBold", font.style, re.IGNORECASE): weight = "SemiBold"
+            elif re.search("ExtraBold", font.style, re.IGNORECASE): weight = "ExtraBold"
+            elif re.search("UltraBold", font.style, re.IGNORECASE): weight = "UltraBold"
+            elif re.search("Bold", font.style, re.IGNORECASE): weight = "Bold"
+            elif re.search("ExtraBlack", font.style, re.IGNORECASE): weight = "ExtraBlack"
+            elif re.search("UltraBlack", font.style, re.IGNORECASE): weight = "UltraBlack"
+            elif re.search("Black", font.style, re.IGNORECASE): weight = "Black"
+            elif re.search("Heavy", font.style, re.IGNORECASE): weight = "Heavy"
+
+            if re.search("Italic", font.style, re.IGNORECASE): style = "Italic"
 
             text = text.replace('\r', '&#x0a;')
 
@@ -1304,7 +1460,7 @@ class JsonParser:
             self.body += '>\n'
 
             self.body += self.tab + '    <TextBlock.RenderTransform>\n'
-            self.body += self.tab + '      <TranslateTransform Y="%s"/>\n' % format_float(-size - baseline_shift)
+            self.body += self.tab + '      <TranslateTransform Y="%s"/>\n' % format_float(-baseline - baseline_shift)
             self.body += self.tab + '    </TextBlock.RenderTransform>\n'
             self.body += self.tab + '  </TextBlock>\n'
 
@@ -1343,15 +1499,21 @@ class JsonParser:
         unused_auto_orient = self.read_field('ao', None)
         unused_blend_mode = self.read_field('bm', None)
         unused_start_frame = self.read_field('st', None)
+        unused_has_mask = self.read_field('hasMask', None)
+        unused_td = self.read_field('td', None)
+        effects = self.read_field('ef', None)
+
         # Common
         index = self.read_field('ind', None)
         parent = self.read_field('parent', None)
         transform = self.read_transform(self.read_field('ks'))
+        mask = self.read_mask(self.read_field('masksProperties', None))
         start = max(self.start, self.read_field('ip'))
         end = min(self.end, self.read_field('op'))
         time_stretch = self.read_field('sr', None)
         refId = self.read_field('refId', None)
         ty = self.read_field('ty')
+        matte_type = self.read_field('tt', None)
         # Solid 
         solid_width = self.read_field('sw', None)
         solid_height = self.read_field('sh', None)
@@ -1365,6 +1527,12 @@ class JsonParser:
         text_data = self.read_field('t', None)
         self.end_reading()
 
+        if effects != None:
+            warning('Layer Effects not supported')
+
+        if matte_type != None:
+            warning('Track Matte not supported')
+
         if time_stretch != 1:
             warning('Time Stretch not supported')
 
@@ -1372,8 +1540,8 @@ class JsonParser:
             warning("Unsupported layer type '%d'" % ty)
 
         if self.debug:
-            print(' = #%d - %s - (%s - %s)' % \
-                (index, ['Precomp', 'Solid', 'Image', 'Null', 'Shape', 'Text'][ty], \
+            print(' = #%s%d - %s - (%s - %s)' % \
+                (prefix, index, ['Precomp', 'Solid', 'Image', 'Null', 'Shape', 'Text'][ty], \
                 self.as_time(start), self.as_time(end)))
 
         start_tab = self.tab
@@ -1400,12 +1568,18 @@ class JsonParser:
         if start > 0:
             self.body += ' Visibility="Hidden"'
         self.write_visibility_animations(name, start, end)
-        self.body += '>\n'
 
+        if not self.has_mask_elements(mask):
+            self.write_mask_attributes(mask)
+
+        self.body += '>\n'
         num_lines = self.body.count('\n')
 
         if self.has_transform_elements(transform):
             self.write_transform_elements(root_class, transform, name)
+
+        if self.has_mask_elements(mask):
+            self.write_mask_elements(root_class, mask, name)
 
         if ty == LAYER_TYPE_PRECOMP:
             self.push_tab()
@@ -1440,6 +1614,7 @@ class JsonParser:
             for asset in obj:
                 self.begin_reading('asset', asset)
                 id = self.read_field('id')
+                unused_nm = self.read_field('nm', None)
                 unused_e = self.read_field('e', 0)
                 unused_width = self.read_field('w', None)
                 unused_height = self.read_field('h', None)
@@ -1464,7 +1639,7 @@ class JsonParser:
                 ascent = self.read_field('ascent', None)
                 fName = self.read_field('fName', None)
                 fPath = self.read_field('fPath', None)
-                self.fonts.append(Font(fName, fPath, fFamily, fStyle))
+                self.fonts.append(Font(fName, fPath, fFamily, fStyle, ascent))
                 self.end_reading()
             self.end_reading()
 
@@ -1501,13 +1676,14 @@ def main():
     arg_parser = ArgumentParser(description="Converts from After Effects Bodymovin format to Noesis XAML")
     arg_parser.add_argument("--version", action="version", version="%(prog)s "  + __version__)
     arg_parser.add_argument("--debug", action='store_true', help="dump layers information")
-    arg_parser.add_argument("--template", action='store', metavar='<key>', help="imports lottie as a control template resource")
-    arg_parser.add_argument("--repeat", action='store', metavar='<behavior>', help="describes how the animation repeats")
+    arg_parser.add_argument("--viewbox", action='store_true', help="use Viewbox as root element")
+    arg_parser.add_argument("--template", action='store', metavar='<key>', help="import lottie as a control template resource")
+    arg_parser.add_argument("--repeat", action='store', metavar='<behavior>', help="describe how the animation repeats")
     arg_parser.add_argument("json_file", help="the JSON file to be converted from")
     arg_parser.add_argument("xaml_file", help="the XAML file to created")
 
     args = arg_parser.parse_args()
-    json_parser = JsonParser(args.debug, args.template, args.repeat)
+    json_parser = JsonParser(args.debug, args.viewbox, args.template, args.repeat)
     json_parser.parse(args.json_file, args.xaml_file)
 
 if __name__ == "__main__":

@@ -18,9 +18,7 @@ Click on [Sample0](https://www.noesisengine.com/xamltoy/e4c6986363164dabcb6e0ea8
 Use the Python script to convert from .json to .xaml:
 
 ```
-usage: json2xaml.py [-h] [--version] [--debug] [--template <key>]
-                    [--repeat <behavior>]
-                    json_file xaml_file
+usage: json2xaml.py [-h] [--version] [--debug] [--viewbox] [--template <key>] [--repeat <behavior>] json_file xaml_file
 
 Converts from After Effects Bodymovin format to Noesis XAML
 
@@ -31,9 +29,10 @@ positional arguments:
 optional arguments:
   -h, --help           show this help message and exit
   --version            show program's version number and exit
-  --debug              Dump layers information
-  --template <key>     Imports lottie as a control template resource
-  --repeat <behavior>  Describes how the animation repeats
+  --debug              dump layers information
+  --viewbox            use Viewbox as root element
+  --template <key>     import lottie as a control template resource
+  --repeat <behavior>  describe how the animation repeats
 ```
 
 ## Usage
@@ -100,9 +99,9 @@ json2xaml.py --template lottie lottie.json lottie.xaml
 | Spatial Bezier Interpolation |  ⛔️
 | Rove Across Time |              ⛔️
 | **Masks** | Supported |
-| Mask Path |                     ⛔️
+| Mask Path |                     👍
 | Mask Opacity |                  ⛔️
-| Add |                           ⛔️
+| Add |                           👍
 | Subtract |                      ⛔️
 | Intersect |                     ⛔️
 | Lighten |                       ⛔️
