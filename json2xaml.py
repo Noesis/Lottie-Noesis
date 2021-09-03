@@ -1492,7 +1492,7 @@ class JsonParser:
 
     def write_layer(self, obj, layers, prefix=""):
         self.begin_reading('layer', obj)
-        unused_name = self.read_field('nm')
+        unused_name = self.read_field('nm', None)
         unused_class = self.read_field('cl', None)
         unused_is_3d = self.read_field('ddd', None)
         unused_hidden = self.read_field('hd', None)
@@ -1616,11 +1616,20 @@ class JsonParser:
                 id = self.read_field('id')
                 unused_nm = self.read_field('nm', None)
                 unused_e = self.read_field('e', 0)
+                unused_t = self.read_field('t', None)
                 unused_width = self.read_field('w', None)
                 unused_height = self.read_field('h', None)
                 path = self.read_field('u', "")
                 filename = self.read_field('p', "")
                 layers = self.read_field('layers', None)
+
+                if layers:
+                    for layer in layers:
+                        # Sometimes (for example in PNG Sequences) the index is missing
+                        # We always need indices as they are part of each 'x:Name'
+                        if 'ind' not in layer:
+                            layer['ind'] = layers.index(layer)
+
                 if layers: layers.sort(key = lambda layer: layer['ind'], reverse = True)
                 self.assets.append(Asset(id, path + filename, layers))
                 self.end_reading()
